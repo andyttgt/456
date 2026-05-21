@@ -1,775 +1,860 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template_string
+import requests
+from bs4 import BeautifulSoup
+import urllib3
 from datetime import datetime
-import random
 import re
+import json
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 
-# 升級版聊天機器人
-class SmartChatBot:
-    def __init__(self):
-        # 更豐富的回應庫
-        self.responses = {
-            "你好|嗨|哈囉|hi|hello": [
-                "你好呀！今天過得怎麼樣？😊",
-                "嗨～很高興見到你！有什麼想聊的嗎？",
-                "哈囉！需要我幫忙什麼嗎？",
-                "嗨！今天心情如何？"
-            ],
-            "早安|早上好": [
-                "早安！今天也是充滿希望的一天！☀️",
-                "早安～吃早餐了嗎？",
-                "早上好！祝你今天事事順利！"
-            ],
-            "晚安|睡覺|睡": [
-                "晚安～祝你有個好夢！🌙",
-                "早點休息喔，明天見！",
-                "晚安！記得要蓋好被子～"
-            ],
-            "你好嗎|how are you": [
-                "我很好！謝謝關心～你呢？",
-                "超棒的！因為在跟你聊天啊！😊",
-                "很不錯呢！有什麼我可以幫你的嗎？"
-            ],
-            "名字|你叫什麼": [
-                "我是智慧聊天機器人，你可以叫我小智！",
-                "我叫ChatBot，是你的AI助手～",
-                "你可以叫我小幫手，隨時為你服務！"
-            ],
-            "謝謝|感謝|3q": [
-                "不客氣！能幫到你我很高興！😊",
-                "舉手之勞～還有什麼需要嗎？",
-                "很高興能為你服務！"
-            ],
-            "再見|掰掰|bye|88": [
-                "再見～期待下次聊天！👋",
-                "拜拜！保持聯繫喔！",
-                "下次再聊，祝你今天開心！"
-            ],
-            "天氣|氣象": [
-                "我雖然不能查天氣，但我可以推薦天氣相關的電影喔！☀️",
-                "要不要看看窗外？比問我更準確😄",
-                "建議打開氣象App查詢更準確喔～"
-            ],
-            "電影|影片": [
-                "我超愛電影的！你喜歡看什麼類型？動作、喜劇、愛情還是科幻？🎬",
-                "最近《玩命關頭X》、《蜘蛛人》都很好看！",
-                "推薦你去看IMDb高分電影，都不會踩雷！"
-            ],
-            "推薦|介紹|好看": [
-                "最近很推《奧本海默》！劇情超精彩！",
-                "如果你想看喜劇，推薦《芭比》，輕鬆有趣！",
-                "動作片的話，《不可能的任務7》很刺激！"
-            ],
-            "笑話|搞笑": [
-                "為什麼電腦很冷？因為它會開機(窗)！😂",
-                "什麼水果最會打電話？芭樂(撥啦)！",
-                "魚為什麼那麼聰明？因為牠們都在海裡(海裡=嗨哩)！",
-                "蘋果沒出門，為什麼還是黑了？因為它被咬了一口(lightning)！"
-            ],
-            "喜歡|愛好": [
-                "我喜歡和你聊天！學習新東西也很有趣～",
-                "我喜歡幫助人，還有看電影！你呢？",
-                "我最喜歡跟使用者互動了！"
-            ],
-            "幫助|功能|能做什麼": [
-                "我可以陪你聊天、講笑話、推薦電影、回答問題！",
-                "有什麼需要盡管說～問問題、聊天、講笑話都可以！",
-                "你可以問我問題，或者單純找我聊天喔！"
-            ],
-            "幾歲|年齡": [
-                "我是AI，永遠18歲！😄",
-                "數位世界裡，時間對我來說沒有意義～",
-                "我昨天剛出生，但我學得很快！"
-            ],
-            "厲害|聰明|強": [
-                "謝謝誇獎！我還在學習中～",
-                "過獎了！有什麼問題儘管問！",
-                "你也很厲害呀！"
-            ],
-            "無聊|好無聊": [
-                "那我們來聊天吧！你喜歡什麼？",
-                "要我講個笑話給你聽嗎？",
-                "要不要我推薦一部好電影給你看？"
-            ],
-            "心情不好|難過|傷心": [
-                "抱一個～希望你能開心起來！🤗",
-                "難過的話可以跟我聊聊，我會聽你說～",
-                "希望你趕快好起來！需要講笑話給你聽嗎？"
-            ],
-            "高興|開心": [
-                "太棒了！快樂的心情會感染人呢！😊",
-                "保持開心喔！",
-                "聽到你開心，我也開心！"
-            ],
-            "吃什麼|美食": [
-                "我雖然不用吃東西，但我可以推薦美食電影！",
-                "推薦你看《飲食男女》，很經典的美食電影！",
-                "《總鋪師》也很讚，看完會很想吃東西～"
-            ],
-            "音樂|歌曲": [
-                "你喜歡聽什麼類型的音樂？",
-                "推薦你聽Lofi，讀書工作很適合！",
-                "電影原聲帶都很好聽，推薦《星際效應》的配樂！"
-            ],
-            "遊戲|玩": [
-                "你喜歡玩什麼遊戲？",
-                "最近《薩爾達傳說》很紅，你玩過嗎？",
-                "推薦你玩獨立遊戲，很多都很有創意！"
-            ],
-            "學習|讀書|考試": [
-                "加油！努力一定會有收穫的！💪",
-                "休息一下再讀會更有效率喔～",
-                "要不要設定番茄鐘？25分鐘讀書，5分鐘休息！"
-            ],
-            "工作|上班|加班": [
-                "辛苦了！記得要適度休息喔～",
-                "加油！工作之餘也要照顧自己！",
-                "需要我講笑話讓你放鬆一下嗎？"
-            ]
-        }
-        
-        # 更自然的默認回應
-        self.default_responses = [
-            "嗯～讓我想想...你說的是什麼意思呢？",
-            "原來如此！可以再多說一些嗎？",
-            "這個話題很有趣，我很想聽你多說說！",
-            "我還在學習中，你能教我怎麼回答會更好嗎？",
-            "哇～這個問題很有意思！",
-            "繼續說，我有在認真聽喔！"
-        ]
-        
-        # 跟進問題回應
-        self.follow_up_responses = [
-            "然後呢？",
-            "真的嗎？",
-            "哇！然後呢然後呢？",
-            "我也這麼覺得！",
-            "說得對！"
-        ]
-    
-    def get_response(self, message):
-        message = message.strip()
-        
-        # 特別處理：純表情符號
-        emojis_only = re.match(r'^[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]+$', message)
-        if emojis_only:
-            return random.choice(["😊", "👍", "🤗", "😄", "❤️"])
-        
-        # 特別處理：很短的訊息（表示想聊天）
-        if len(message) <= 3:
-            return random.choice(self.follow_up_responses)
-        
-        # 問句處理
-        is_question = "?" in message or "？" in message or "嗎" in message
-        
-        # 關鍵字匹配（使用正則表達式）
-        for pattern, responses in self.responses.items():
-            if re.search(pattern, message, re.IGNORECASE):
-                return random.choice(responses)
-        
-        # 問句但沒匹配到關鍵字
-        if is_question:
-            return random.choice([
-                "好問題！讓我想想...",
-                "這個問題很有趣，但我還不太確定答案耶😅",
-                "你能再說詳細一點嗎？",
-                "我還在學習中，也許你可以問我其他問題！"
-            ])
-        
-        # 長句子處理
-        if len(message) > 20:
-            return random.choice([
-                "哇～你說了很多，讓我想想怎麼回你...",
-                "嗯嗯，我有在聽！還有嗎？",
-                f"你說的「{message[:30]}...」這個話題很有意思！"
-            ])
-        
-        # 默認回應
-        return random.choice(self.default_responses)
-
-chatbot = SmartChatBot()
-
-# 首頁 HTML
-INDEX_HTML = '''
+# HTML 模板 - 首頁（同上，略）
+INDEX_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 智慧聊天機器人</title>
+    <title>P級電影推薦系統</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Microsoft JhengHei', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-        }
-        .bg-animation { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
-        .circle {
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            animation: float 20s infinite;
-        }
-        @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(180deg); }
-        }
-        .container {
-            position: relative;
-            z-index: 1;
-            text-align: center;
             padding: 40px;
-            animation: fadeInUp 0.8s ease;
         }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
         }
-        .logo {
-            width: 120px;
-            height: 120px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 30px;
-            animation: pulse 2s infinite;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        .logo span { font-size: 60px; }
-        h1 {
-            font-size: 3em;
+
+        .header {
+            text-align: center;
             color: white;
-            margin-bottom: 15px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-        }
-        .subtitle {
-            font-size: 1.2em;
-            color: rgba(255,255,255,0.9);
             margin-bottom: 40px;
         }
-        .features {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            flex-wrap: wrap;
-            margin-bottom: 50px;
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
-        .feature-card {
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(10px);
-            padding: 25px;
-            border-radius: 20px;
-            width: 200px;
-            transition: all 0.3s;
-        }
-        .feature-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-        }
-        .feature-icon { font-size: 48px; margin-bottom: 15px; }
-        .feature-title {
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 8px;
-        }
-        .feature-desc { font-size: 0.85em; color: #666; }
-        .btn {
-            display: inline-block;
-            background: white;
-            color: #667eea;
-            text-decoration: none;
-            padding: 15px 40px;
-            border-radius: 50px;
+
+        .subtitle {
             font-size: 1.2em;
-            font-weight: bold;
-            transition: all 0.3s;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            opacity: 0.9;
         }
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
-            background: linear-gradient(135deg, #667eea, #764ba2);
+
+        .search-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .rating-select {
+            padding: 15px 20px;
+            font-size: 18px;
+            border: 2px solid #ddd;
+            border-radius: 50px;
+            width: 250px;
+            cursor: pointer;
+        }
+
+        .search-btn {
+            padding: 15px 40px;
+            font-size: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .quick-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .quick-btn {
+            padding: 8px 20px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-btn:hover {
+            background: #667eea;
             color: white;
         }
-        .footer {
-            margin-top: 60px;
-            color: rgba(255,255,255,0.7);
-            font-size: 0.85em;
+
+        .results-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
+
+        .results-header {
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+
+        .results-header h2 {
+            color: #667eea;
+        }
+
+        .results-count {
+            color: #764ba2;
+            font-weight: bold;
+        }
+
+        .movie-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .movie-card {
+            border: 1px solid #eee;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .movie-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .movie-poster {
+            height: 200px;
+            background: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .movie-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .no-poster {
+            color: #999;
+            font-size: 14px;
+        }
+
+        .movie-info {
+            padding: 15px;
+        }
+
+        .movie-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .movie-rating {
+            display: inline-block;
+            background: #ff6b6b;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .movie-date {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .movie-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .movie-link:hover {
+            text-decoration: underline;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: white;
+        }
+
+        .debug-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #856404;
+            text-align: left;
+        }
+
         @media (max-width: 768px) {
-            h1 { font-size: 2em; }
-            .feature-card { width: 160px; padding: 20px; }
-            .container { padding: 20px; }
+            body {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 2em;
+            }
+            .movie-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="bg-animation" id="bgAnimation"></div>
     <div class="container">
-        <div class="logo"><span>🧠</span></div>
-        <h1>AI 智慧聊天機器人</h1>
-        <div class="subtitle">更聰明、更自然、更懂你</div>
-        <div class="features">
-            <div class="feature-card"><div class="feature-icon">💬</div><div class="feature-title">自然對話</div><div class="feature-desc">更像真人的對話體驗</div></div>
-            <div class="feature-card"><div class="feature-icon">🎯</div><div class="feature-title">智慧回應</div><div class="feature-desc">理解你的意圖</div></div>
-            <div class="feature-card"><div class="feature-icon">🎬</div><div class="feature-title">電影推薦</div><div class="feature-desc">專業電影建議</div></div>
-            <div class="feature-card"><div class="feature-icon">❤️</div><div class="feature-title">情感支持</div><div class="feature-desc">陪你聊心事</div></div>
+        <div class="header">
+            <h1>🎬 P級電影推薦系統</h1>
+            <p class="subtitle">查詢本週上映的保護級(P)電影，適合6歲以上觀賞</p>
         </div>
-        <a href="/webdemo" class="btn">開始聊天 →</a>
-        <div class="footer"><p>Powered by AI | 智慧對話系統</p></div>
+
+        <div class="search-card">
+            <form method="get" action="/recommend" class="search-form">
+                <select name="rating" class="rating-select">
+                    <option value="P">🔞 P級 (保護級)</option>
+                    <option value="G">👶 G級 (普遍級)</option>
+                    <option value="PG12">🧒 PG12 (輔導12級)</option>
+                    <option value="PG15">👦 PG15 (輔導15級)</option>
+                    <option value="R">🔞 R級 (限制級)</option>
+                    <option value="all">📽️ 顯示全部電影</option>
+                </select>
+                <button type="submit" class="search-btn">🔍 查詢推薦</button>
+            </form>
+            
+            <div class="quick-buttons">
+                <button class="quick-btn" onclick="location.href='/recommend?rating=P'">🎯 P級電影</button>
+                <button class="quick-btn" onclick="location.href='/recommend?rating=all'">📅 本週全電影</button>
+                <button class="quick-btn" onclick="location.href='/debug'">🔧 查看除錯</button>
+                <button class="quick-btn" onclick="location.href='/'">🔄 重新整理</button>
+            </div>
+        </div>
+
+        <div class="results-card">
+            <div class="results-header">
+                <h2>📽️ 電影推薦結果</h2>
+            </div>
+            <div id="results">
+                <p style="text-align:center; color:#999;">請選擇電影分級進行查詢</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>資料來源：開眼電影網 | 分級依據：台灣電影分級制度</p>
+        </div>
     </div>
-    <script>
-        function createCircles() {
-            const container = document.getElementById('bgAnimation');
-            for (let i = 0; i < 30; i++) {
-                const circle = document.createElement('div');
-                circle.classList.add('circle');
-                const size = Math.random() * 100 + 50;
-                circle.style.width = size + 'px';
-                circle.style.height = size + 'px';
-                circle.style.left = Math.random() * 100 + '%';
-                circle.style.top = Math.random() * 100 + '%';
-                circle.style.animationDelay = Math.random() * 20 + 's';
-                circle.style.animationDuration = (Math.random() * 15 + 10) + 's';
-                container.appendChild(circle);
-            }
-        }
-        createCircles();
-    </script>
 </body>
 </html>
 '''
 
-# 聊天室 HTML（升級版）
-WEBDEMO_HTML = '''
+# HTML 模板 - 查詢結果
+RECOMMEND_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AI 智慧聊天機器人</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ rating_name }}電影推薦 - 查詢結果</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            overflow: hidden;
-            position: relative;
+            min-height: 100vh;
+            padding: 40px;
         }
-        .bg-animation { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
-        .circle {
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            animation: float 20s infinite;
-        }
-        @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(180deg); }
-        }
+
         .container {
-            position: relative;
-            z-index: 1;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
         }
-        .chat-header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 15px 25px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            animation: slideDown 0.5s ease;
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
         }
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-30px); }
-            to { opacity: 1; transform: translateY(0); }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
         }
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-        }
-        .logo-icon {
-            width: 45px;
-            height: 45px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        .logo-text h1 {
-            font-size: 1.5em;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-        .logo-text p { font-size: 0.8em; color: #666; }
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #e8f5e9;
-            padding: 8px 16px;
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            padding: 10px 20px;
             border-radius: 50px;
+            margin-top: 20px;
+            transition: transform 0.2s;
         }
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            background: #4CAF50;
-            border-radius: 50%;
-            animation: blink 1.5s infinite;
+
+        .back-btn:hover {
+            transform: translateY(-2px);
         }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        .status span { font-size: 0.85em; color: #2e7d32; }
-        .chat-messages {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
+
+        .results-card {
+            background: white;
             border-radius: 20px;
-            overflow-y: auto;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-        .chat-messages::-webkit-scrollbar { width: 6px; }
-        .chat-messages::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        .chat-messages::-webkit-scrollbar-thumb { background: #667eea; border-radius: 10px; }
-        .message {
-            display: flex;
-            margin-bottom: 20px;
-            animation: messageFadeIn 0.3s ease;
+
+        .results-header {
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
         }
-        @keyframes messageFadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .message.user { justify-content: flex-end; }
-        .message.bot { justify-content: flex-start; }
-        .message-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            margin: 0 10px;
-            flex-shrink: 0;
-        }
-        .message.bot .message-avatar {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        .message.user .message-avatar {
-            background: #4CAF50;
-            color: white;
-            order: 2;
-            margin-left: 10px;
-            margin-right: 0;
-        }
-        .message-bubble {
-            max-width: 70%;
-            padding: 12px 18px;
-            border-radius: 20px;
-            word-wrap: break-word;
-            line-height: 1.5;
-        }
-        .message.bot .message-bubble {
-            background: #f0f0f0;
-            color: #333;
-            border-bottom-left-radius: 5px;
-        }
-        .message.user .message-bubble {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border-bottom-right-radius: 5px;
-        }
-        .message-time {
-            font-size: 0.7em;
-            color: #999;
-            margin-top: 5px;
-            text-align: right;
-        }
-        .typing {
-            display: flex;
-            gap: 5px;
-            padding: 12px 18px;
-        }
-        .typing span {
-            width: 8px;
-            height: 8px;
-            background: #999;
-            border-radius: 50%;
-            animation: typing 1.4s infinite;
-        }
-        .typing span:nth-child(2) { animation-delay: 0.2s; }
-        .typing span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typing {
-            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-            30% { transform: translateY(-10px); opacity: 1; }
-        }
-        .chat-input-area {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 15px 20px;
-            display: flex;
-            gap: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        .chat-input {
-            flex: 1;
-            padding: 12px 18px;
-            border: 2px solid #e0e0e0;
-            border-radius: 50px;
-            font-size: 1em;
-            outline: none;
-            transition: all 0.3s;
-            font-family: inherit;
-        }
-        .chat-input:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        .send-btn {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border: none;
-            border-radius: 50%;
-            color: white;
-            font-size: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .send-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        .clear-btn { background: rgba(255, 107, 107, 0.9); }
-        .clear-btn:hover { background: #ff6b6b; box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4); }
-        .quick-replies {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-        .quick-reply-btn {
-            background: rgba(102, 126, 234, 0.1);
-            border: 1px solid rgba(102, 126, 234, 0.3);
-            padding: 6px 14px;
-            border-radius: 50px;
-            font-size: 0.85em;
-            cursor: pointer;
-            transition: all 0.2s;
+
+        .results-header h2 {
             color: #667eea;
         }
-        .quick-reply-btn:hover {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+
+        .results-count {
+            color: #764ba2;
+            font-weight: bold;
+        }
+
+        .rating-badge {
+            display: inline-block;
+            background: {{ rating_color }};
+            color: white;
+            padding: 5px 15px;
+            border-radius: 30px;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+
+        .movie-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .movie-card {
+            border: 1px solid #eee;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .movie-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .movie-poster {
+            height: 200px;
+            background: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .movie-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .no-poster {
+            color: #999;
+            font-size: 14px;
+        }
+
+        .movie-info {
+            padding: 15px;
+        }
+
+        .movie-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .movie-rating {
+            display: inline-block;
+            background: {{ rating_color }};
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .movie-date {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .movie-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .movie-link:hover {
+            text-decoration: underline;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
             color: white;
         }
+
+        .search-again {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+        }
+
+        .search-again select, .search-again button {
+            padding: 10px 15px;
+            margin: 0 5px;
+            border-radius: 50px;
+            border: 1px solid #ddd;
+        }
+
+        .search-again button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .debug-info {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 10px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #0c5460;
+        }
+
         @media (max-width: 768px) {
-            .container { padding: 10px; }
-            .message-bubble { max-width: 85%; }
-            .logo-text h1 { font-size: 1.2em; }
-            .chat-header { padding: 12px 18px; }
+            body {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+            .movie-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="bg-animation" id="bgAnimation"></div>
     <div class="container">
-        <div class="chat-header">
-            <div class="logo" onclick="location.href='/'">
-                <div class="logo-icon">🧠</div>
-                <div class="logo-text">
-                    <h1>AI 智慧聊天</h1>
-                    <p>更聰明更自然</p>
+        <div class="header">
+            <h1>🎬 {{ rating_name }}電影推薦</h1>
+            <p>{{ description }}</p>
+            <a href="/" class="back-btn">← 返回首頁</a>
+        </div>
+
+        <div class="results-card">
+            <div class="results-header">
+                <h2>📽️ 本週上映電影 
+                    <span class="rating-badge">{{ rating_name }}</span>
+                </h2>
+                <p>共找到 <span class="results-count">{{ movies|length }}</span> 部符合條件的電影</p>
+                <p style="font-size: 14px; color: #666;">總共爬取 {{ total_count }} 部本週上映電影</p>
+            </div>
+
+            {% if movies %}
+            <div class="movie-grid">
+                {% for movie in movies %}
+                <div class="movie-card">
+                    <div class="movie-poster">
+                        {% if movie.poster %}
+                            <img src="{{ movie.poster }}" alt="{{ movie.title }}" onerror="this.parentElement.innerHTML='<div class=\'no-poster\'>🎬 無海報圖片</div>'">
+                        {% else %}
+                            <div class="no-poster">🎬 無海報圖片</div>
+                        {% endif %}
+                    </div>
+                    <div class="movie-info">
+                        <div class="movie-title">{{ movie.title }}</div>
+                        <div class="movie-rating">{{ movie.rating }}</div>
+                        <div class="movie-date">📅 上映日期：{{ movie.release_date }}</div>
+                        <a href="{{ movie.url }}" class="movie-link" target="_blank">🔗 詳細介紹 →</a>
+                    </div>
                 </div>
+                {% endfor %}
             </div>
-            <div class="status">
-                <div class="status-dot"></div>
-                <span>智慧在線</span>
+            {% else %}
+            <div class="no-results">
+                <p>😢 抱歉，本週沒有找到「{{ rating_name }}」電影</p>
+                <p>💡 可能原因：</p>
+                <ul style="text-align: left; display: inline-block; margin-top: 10px;">
+                    <li>本週確實沒有該分級的電影上映</li>
+                    <li>網站分級資訊標示不明確</li>
+                    <li>建議點擊「顯示全部電影」查看所有電影的分級</li>
+                </ul>
+                <p style="margin-top: 20px;">
+                    <a href="/recommend?rating=all" style="color: #667eea;">👉 點我查看全部電影 👈</a>
+                </p>
             </div>
-        </div>
-        <div class="chat-messages" id="chatMessages">
-            <div class="message bot">
-                <div class="message-avatar">🧠</div>
-                <div class="message-bubble">
-                    嗨！我是升級版AI 🤗<br>
-                    我比以前更聰明了！<br>
-                    可以跟我聊心事、問問題、講笑話～<br>
-                    來試試看吧！
-                    <div class="message-time" id="initTime"></div>
-                </div>
+            {% endif %}
+
+            <div class="search-again">
+                <form method="get" action="/recommend" style="display: inline;">
+                    <select name="rating">
+                        <option value="P">P級 (保護級)</option>
+                        <option value="G">G級 (普遍級)</option>
+                        <option value="PG12">PG12 (輔導12級)</option>
+                        <option value="PG15">PG15 (輔導15級)</option>
+                        <option value="R">R級 (限制級)</option>
+                        <option value="all">顯示全部電影</option>
+                    </select>
+                    <button type="submit">🔍 查詢其他分級</button>
+                </form>
             </div>
+
+            {% if debug_data %}
+            <div class="debug-info">
+                <strong>🔧 除錯資訊：</strong><br>
+                所有電影分級統計：<br>
+                {% for rating, count in debug_data.items() %}
+                - {{ rating }}: {{ count }} 部<br>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
-        <div class="chat-input-area">
-            <input type="text" id="messageInput" class="chat-input" placeholder="試試問我：推薦電影、講笑話、心情不好..." onkeypress="handleKeyPress(event)">
-            <button class="send-btn" onclick="sendMessage()">📤</button>
-            <button class="send-btn clear-btn" onclick="clearChat()">🗑️</button>
-        </div>
-        <div class="quick-replies">
-            <button class="quick-reply-btn" onclick="quickReply('你好')">👋 打招呼</button>
-            <button class="quick-reply-btn" onclick="quickReply('講個笑話')">😄 笑話</button>
-            <button class="quick-reply-btn" onclick="quickReply('推薦電影')">🎬 推薦電影</button>
-            <button class="quick-reply-btn" onclick="quickReply('心情不好')">💔 求安慰</button>
-            <button class="quick-reply-btn" onclick="quickReply('我好無聊')">😫 好無聊</button>
-            <button class="quick-reply-btn" onclick="quickReply('你好聰明')">⭐ 誇獎</button>
+
+        <div class="footer">
+            <p>資料來源：開眼電影網 | 更新時間：{{ update_time }} | 分級依據：台灣電影分級制度</p>
         </div>
     </div>
-    <script>
-        const now = new Date();
-        const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-        document.getElementById('initTime').textContent = timeStr;
-        let isTyping = false;
-        function createCircles() {
-            const container = document.getElementById('bgAnimation');
-            for (let i = 0; i < 30; i++) {
-                const circle = document.createElement('div');
-                circle.classList.add('circle');
-                const size = Math.random() * 100 + 50;
-                circle.style.width = size + 'px';
-                circle.style.height = size + 'px';
-                circle.style.left = Math.random() * 100 + '%';
-                circle.style.top = Math.random() * 100 + '%';
-                circle.style.animationDelay = Math.random() * 20 + 's';
-                circle.style.animationDuration = (Math.random() * 15 + 10) + 's';
-                container.appendChild(circle);
-            }
-        }
-        function showTypingIndicator() {
-            const messagesDiv = document.getElementById('chatMessages');
-            const typingDiv = document.createElement('div');
-            typingDiv.className = 'message bot';
-            typingDiv.id = 'typingIndicator';
-            typingDiv.innerHTML = `<div class="message-avatar">🧠</div><div class="message-bubble typing"><span></span><span></span><span></span></div>`;
-            messagesDiv.appendChild(typingDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            isTyping = true;
-        }
-        function hideTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
-            if (indicator) { indicator.remove(); }
-            isTyping = false;
-        }
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            if (!message) return;
-            addMessage(message, 'user');
-            input.value = '';
-            showTypingIndicator();
-            try {
-                const response = await fetch('/webdemo/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
-                });
-                const data = await response.json();
-                hideTypingIndicator();
-                addMessage(data.reply, 'bot');
-            } catch (error) {
-                hideTypingIndicator();
-                addMessage('抱歉，發生錯誤了，請稍後再試！', 'bot');
-            }
-        }
-        function addMessage(text, sender) {
-            const messagesDiv = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}`;
-            const now = new Date();
-            const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-            const avatar = sender === 'user' ? '👤' : '🧠';
-            messageDiv.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-bubble">${escapeHtml(text)}<div class="message-time">${timeStr}</div></div>`;
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        function quickReply(text) {
-            document.getElementById('messageInput').value = text;
-            sendMessage();
-        }
-        function clearChat() {
-            const messagesDiv = document.getElementById('chatMessages');
-            const now = new Date();
-            const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-            messagesDiv.innerHTML = `<div class="message bot"><div class="message-avatar">🧠</div><div class="message-bubble">對話已清空！有什麼想聊的嗎？😊<div class="message-time">${timeStr}</div></div></div>`;
-        }
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') { sendMessage(); }
-        }
-        createCircles();
-    </script>
 </body>
 </html>
 '''
 
+# 除錯頁面
+DEBUG_TEMPLATE = '''
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>除錯資訊 - 電影分級查詢</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        h1 { color: #333; }
+        .movie-item {
+            border-bottom: 1px solid #ddd;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .rating-P { background: #e8f5e9; }
+        .rating-G { background: #e3f2fd; }
+        .rating-PG12 { background: #fff3e0; }
+        .rating-PG15 { background: #fbe9e7; }
+        .rating-R { background: #ffebee; }
+        .back-btn {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-btn">← 返回首頁</a>
+        <h1>🔧 電影分級除錯資訊</h1>
+        <p>總共爬取 {{ movies|length }} 部電影</p>
+        
+        <h2>📊 分級統計</h2>
+        <ul>
+        {% for rating, count in stats.items() %}
+            <li><strong>{{ rating }}</strong>: {{ count }} 部</li>
+        {% endfor %}
+        </ul>
+        
+        <h2>📽️ 所有電影詳細資訊</h2>
+        {% for movie in movies %}
+        <div class="movie-item rating-{{ movie.rating_code }}">
+            <strong>{{ movie.title }}</strong><br>
+            分級: {{ movie.rating }}<br>
+            上映日期: {{ movie.release_date }}<br>
+            連結: <a href="{{ movie.url }}" target="_blank">{{ movie.url[:50] }}...</a><br>
+            海報: <img src="{{ movie.poster }}" style="max-width: 100px; margin-top: 5px;" onerror="this.style.display='none'">
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
+'''
+
+def get_movies_from_atmovies():
+    """從開眼電影網爬取本週上映電影（改良版）"""
+    url = "http://www.atmovies.com.tw/movie/next/"
+    print(f"正在爬取: {url}")
+    
+    Data = requests.get(url, verify=False, timeout=10)
+    Data.encoding = "utf-8"
+    sp = BeautifulSoup(Data.text, "html.parser")
+    result = sp.select(".filmListAllX li")
+    
+    print(f"找到 {len(result)} 部電影")
+    
+    movies = []
+    
+    for idx, item in enumerate(result):
+        # 電影名稱
+        title_tag = item.find("div", class_="filmtitle")
+        if not title_tag:
+            continue
+        title = title_tag.text.strip()
+        
+        # 電影介紹頁
+        a_tag = title_tag.find("a")
+        hyperlink = "http://www.atmovies.com.tw" + a_tag.get("href") if a_tag else ""
+        
+        # 上映日期
+        runtime_tag = item.find("div", class_="runtime")
+        release_date = "未知"
+        if runtime_tag:
+            runtime_text = runtime_tag.text
+            date_match = re.search(r'(\d{4}-\d{2}-\d{2})', runtime_text)
+            if date_match:
+                release_date = date_match.group(1)
+        
+        # 海報圖片
+        img_tag = item.find("img")
+        poster = img_tag.get("src") if img_tag else ""
+        
+        # 獲取電影分級資訊（從詳細頁面）
+        rating = "未標示"
+        rating_code = "unknown"
+        
+        if hyperlink:
+            try:
+                print(f"正在查詢分級: {title}")
+                detail_response = requests.get(hyperlink, verify=False, timeout=5)
+                detail_response.encoding = "utf-8"
+                detail_sp = BeautifulSoup(detail_response.text, "html.parser")
+                
+                # 搜尋整個頁面文字
+                page_text = detail_sp.get_text()
+                
+                # 更精確的分級判斷
+                if re.search(r'保護級[（(]P[）)]|保護級\s*[（(]P[）)]|分級[：:]\s*保護級', page_text):
+                    rating = '保護級(P)'
+                    rating_code = 'P'
+                elif re.search(r'普遍級[（(]G[）)]|普遍級\s*[（(]G[）)]|分級[：:]\s*普遍級', page_text):
+                    rating = '普遍級(G)'
+                    rating_code = 'G'
+                elif re.search(r'輔導.*?12|輔12級|PG12', page_text):
+                    rating = '輔導12級(PG12)'
+                    rating_code = 'PG12'
+                elif re.search(r'輔導.*?15|輔15級|PG15', page_text):
+                    rating = '輔導15級(PG15)'
+                    rating_code = 'PG15'
+                elif re.search(r'限制級[（(]R[）)]|限制級\s*[（(]R[）)]|分級[：:]\s*限制級', page_text):
+                    rating = '限制級(R)'
+                    rating_code = 'R'
+                else:
+                    # 如果沒找到，檢查是否在 meta 標籤中
+                    meta_rating = detail_sp.find('meta', {'property': 'rating'})
+                    if meta_rating:
+                        meta_content = meta_rating.get('content', '')
+                        if '保護' in meta_content:
+                            rating = '保護級(P)'
+                            rating_code = 'P'
+                        elif '普遍' in meta_content:
+                            rating = '普遍級(G)'
+                            rating_code = 'G'
+                            
+            except Exception as e:
+                print(f"查詢 {title} 分級時發生錯誤: {e}")
+        
+        movies.append({
+            'title': title,
+            'url': hyperlink,
+            'release_date': release_date,
+            'rating': rating,
+            'rating_code': rating_code,
+            'poster': poster
+        })
+        
+        print(f"電影 {idx}: {title} - {rating}")
+    
+    return movies
+
 @app.route("/")
 def index():
-    return INDEX_HTML
+    return render_template_string(INDEX_TEMPLATE)
 
-@app.route("/webdemo")
-def webdemo():
-    return WEBDEMO_HTML
-
-@app.route("/webdemo/api/chat", methods=['POST'])
-def chat_api():
+@app.route("/debug")
+def debug():
+    """除錯頁面 - 顯示所有爬取的電影和分級"""
     try:
-        data = request.get_json()
-        message = data.get('message', '')
-        if not message:
-            return jsonify({'reply': '請輸入訊息內容～'})
-        reply = chatbot.get_response(message)
-        return jsonify({'reply': reply, 'status': 'success'})
+        all_movies = get_movies_from_atmovies()
+        
+        # 統計各分級數量
+        stats = {}
+        for movie in all_movies:
+            rating = movie['rating']
+            stats[rating] = stats.get(rating, 0) + 1
+        
+        return render_template_string(DEBUG_TEMPLATE, movies=all_movies, stats=stats)
+    
     except Exception as e:
-        return jsonify({'reply': '抱歉，處理您的訊息時發生錯誤', 'status': 'error'})
+        return f"除錯頁面發生錯誤: {str(e)}"
 
+@app.route("/recommend")
+def recommend():
+    """查詢推薦電影 - 根據分級篩選"""
+    rating = request.args.get("rating", "P")
+    
+    # 分級對照
+    rating_map_display = {
+        'P': {'name': '保護級(P)', 'color': '#4CAF50', 'description': '適合6歲以上觀眾觀賞，P級電影內容溫和，含有少量教育或娛樂元素。'},
+        'G': {'name': '普遍級(G)', 'color': '#2196F3', 'description': '適合所有年齡層觀賞，內容普遍溫和。'},
+        'PG12': {'name': '輔導12級(PG12)', 'color': '#FF9800', 'description': '未滿12歲不宜觀賞，12歲以上須家長陪同。'},
+        'PG15': {'name': '輔導15級(PG15)', 'color': '#FF5722', 'description': '未滿15歲不宜觀賞，15歲以上須家長陪同。'},
+        'R': {'name': '限制級(R)', 'color': '#F44336', 'description': '未滿18歲不得觀賞，內容可能包含成人議題。'},
+        'all': {'name': '全部', 'color': '#9C27B0', 'description': '顯示本週所有上映電影及其分級資訊。'}
+    }
+    
+    rating_info = rating_map_display.get(rating, rating_map_display['P'])
+    
+    # 爬取電影資料
+    try:
+        all_movies = get_movies_from_atmovies()
+        
+        if rating == 'all':
+            filtered_movies = all_movies
+        else:
+            # 根據分級篩選
+            filtered_movies = []
+            for movie in all_movies:
+                movie_rating = movie['rating']
+                if rating == 'P' and ('保護級' in movie_rating or 'P' in movie_rating):
+                    filtered_movies.append(movie)
+                elif rating == 'G' and ('普遍級' in movie_rating or 'G' in movie_rating):
+                    filtered_movies.append(movie)
+                elif rating == 'PG12' and ('輔12' in movie_rating or 'PG12' in movie_rating):
+                    filtered_movies.append(movie)
+                elif rating == 'PG15' and ('輔15' in movie_rating or 'PG15' in movie_rating):
+                    filtered_movies.append(movie)
+                elif rating == 'R' and ('限制級' in movie_rating or 'R' in movie_rating):
+                    filtered_movies.append(movie)
+        
+        # 準備除錯統計資料
+        debug_stats = {}
+        for movie in all_movies:
+            r = movie['rating']
+            debug_stats[r] = debug_stats.get(r, 0) + 1
+        
+        return render_template_string(
+            RECOMMEND_TEMPLATE,
+            movies=filtered_movies,
+            total_count=len(all_movies),
+            rating_name=rating_info['name'],
+            rating_color=rating_info['color'],
+            description=rating_info['description'],
+            update_time=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            debug_data=debug_stats if rating != 'all' else None
+        )
+    
+    except Exception as e:
+        return render_template_string(
+            RECOMMEND_TEMPLATE,
+            movies=[],
+            total_count=0,
+            rating_name=rating_info['name'],
+            rating_color=rating_info['color'],
+            description=f"查詢發生錯誤：{str(e)}",
+            update_time=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            debug_data=None
+        )
+
+# Vercel 需要這個
 app = app
 
 if __name__ == "__main__":
