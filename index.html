@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>電影爬蟲系統 - 靜宜大學資管系</title>
+    <title>AI 聊天機器人</title>
     <style>
         * {
             margin: 0;
@@ -14,83 +14,231 @@
         body {
             font-family: 'Microsoft JhengHei', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            margin: 0;
-            padding: 0;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 動態背景 */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 20s infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
         }
 
         .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 50px;
-            max-width: 600px;
-            width: 90%;
+            position: relative;
+            z-index: 1;
             text-align: center;
+            padding: 40px;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            animation: pulse 2s infinite;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .logo span {
+            font-size: 60px;
         }
 
         h1 {
-            color: #667eea;
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 3em;
+            color: white;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
 
         .subtitle {
-            color: #666;
-            font-size: 1em;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #667eea;
-            display: inline-block;
-            padding-bottom: 5px;
+            font-size: 1.2em;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 40px;
         }
 
-        h2 {
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 1.3em;
+        .features {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-bottom: 50px;
+        }
+
+        .feature-card {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 20px;
+            width: 200px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .feature-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .feature-desc {
+            font-size: 0.85em;
+            color: #666;
         }
 
         .btn {
-            display: block;
-            background: #667eea;
-            color: white;
+            display: inline-block;
+            background: white;
+            color: #667eea;
             text-decoration: none;
-            padding: 15px 30px;
-            margin: 20px 0;
+            padding: 15px 40px;
             border-radius: 50px;
-            font-size: 1.1em;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 1.2em;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
 
         .btn:hover {
-            background: #764ba2;
             transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
         }
 
-        .btn-secondary {
-            background: #ff6b6b;
-            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+        .footer {
+            margin-top: 60px;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.85em;
         }
 
-        .btn-secondary:hover {
-            background: #ee5a52;
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+            
+            .feature-card {
+                width: 160px;
+                padding: 20px;
+            }
+            
+            .container {
+                padding: 20px;
+            }
         }
     </style>
 </head>
 <body>
+    <div class="bg-animation" id="bgAnimation"></div>
+
     <div class="container">
-        <h1>🕷️ 網路爬蟲</h1>
-        <div class="subtitle">靜宜大學資管系 彭韋諾</div>
+        <div class="logo">
+            <span>🤖</span>
+        </div>
         
-        <h2>🎬 開眼電影網 - 近期上映爬蟲系統</h2>
+        <h1>AI 聊天機器人</h1>
+        <div class="subtitle">隨時陪你聊天、回答問題、分享快樂</div>
         
-        <a href="/movie" class="btn">🚀 爬取最新電影資料</a>
-        <a href="/search" class="btn btn-secondary">🔍 查詢電影（輸入關鍵字）</a>
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">💬</div>
+                <div class="feature-title">自然對話</div>
+                <div class="feature-desc">流暢的中文對話體驗</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">😄</div>
+                <div class="feature-title">幽默風趣</div>
+                <div class="feature-desc">講笑話、輕鬆互動</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🎬</div>
+                <div class="feature-title">電影推薦</div>
+                <div class="feature-desc">提供電影相關建議</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-title">即時回應</div>
+                <div class="feature-desc">快速回覆不延遲</div>
+            </div>
+        </div>
+        
+        <a href="/webdemo" class="btn">開始聊天 →</a>
+        
+        <div class="footer">
+            <p>Powered by Flask | AI 對話系統</p>
+        </div>
     </div>
+
+    <script>
+        // 產生背景圓圈
+        function createCircles() {
+            const container = document.getElementById('bgAnimation');
+            for (let i = 0; i < 30; i++) {
+                const circle = document.createElement('div');
+                circle.classList.add('circle');
+                const size = Math.random() * 100 + 50;
+                circle.style.width = size + 'px';
+                circle.style.height = size + 'px';
+                circle.style.left = Math.random() * 100 + '%';
+                circle.style.top = Math.random() * 100 + '%';
+                circle.style.animationDelay = Math.random() * 20 + 's';
+                circle.style.animationDuration = (Math.random() * 15 + 10) + 's';
+                container.appendChild(circle);
+            }
+        }
+        createCircles();
+    </script>
 </body>
 </html>
